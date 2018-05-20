@@ -1,0 +1,142 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function dialogflow_menu() {
+  $items['legalintent'] = array(
+    'page callback' => 'dialogflow_handle_legalintent_message',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+function dialogflow_handle_legalintent_message() {
+  $results = file_get_contents( 'php://input' );
+ // $clean_results = json_decode($results);
+  $clean_results = drupal_json_decode($results);
+
+  $intent = $clean_results['result']['metadata']['intentName'];
+
+  switch ($intent) {
+    case "LegalIntent":
+
+      $response = "";
+      if (isset($clean_results['result']['parameters']['geo-county'])) {
+        $title = dialogflow_gethelp($clean_results['result']['parameters']['geo-county']);
+      }
+      else {
+        $title = 'I am not sure what you are looking for';
+      }
+      $response = array(
+        'source' => 'ilao',
+        'speech' => $title,
+        'displayText' => $title,
+        'contextOut' => array(),
+      );
+
+      break;
+    case "HousingIntent" :
+      $query = $clean_results['result']['resolvedQuery'];
+      $query = strtolower($query);
+      $title = "I am not sure what you are looking for.  Visit IllinoisLegalAid.org for help";
+      if (stripos($query,'landlord') !== FALSE || stripos($query,'evict') !== FALSE || stripos($query,'rent')) {
+        $title = 'A landlord can evict a tenant if the tenant fails to pay the rent when it is due;
+Violates any of the terms and conditions of the lease agreement;
+Damages the property;
+Does not leave the property after the lease comes to an end; or
+Does not have a written lease, but pays rent monthly, and the landlord gives a 30-day notice to move.';
+      }
+      if (stripos($query, 'forecl') !== FALSE || stripos($query, 'lose') !== FALSE  ) {
+        $title = 'It is important to participate in your court case so you know what is happening and what you can do. You should also work with the lender on a loss mitigation option. During the case, lenders may accept your payments if they are in whole month amounts. The lender must apply the payment to your unpaid debt balance. If the payment is not enough to pay off the entire debt currently due, the lender may continue its foreclosure case.';
+      }
+      if (stripos($query, 'lock') !== FALSE ) {
+        $title = 'Your landlord can not change the locks without a valid eviction.  You may contact the police for help.';
+      }
+      $response = array(
+        'source' => 'ilao',
+        'speech' => $title,
+        'displayText' => $title,
+        'contextOut' => array(),
+      );
+      break;
+    default:
+      $response = array (
+        'source' => 'ilao',
+        'speech' => 'I am not sure what you are looking for.  Some common things I can help you with are finding legal help or help with a legal problem like divorce or eviction.',
+        'displayText' => 'I am not sure what you are looking for.  Some common things I can help you with are finding legal help or help with a legal problem like divorce or eviction.',
+        'contextOut' => array(),
+      );
+
+  }
+
+  dialogflow_sendMessage($response);
+
+}
+
+function dialogflow_sendMessage($parameters) {
+  echo json_encode($parameters);
+}
+
+function dialogFlow_getNode($query) {
+
+  if (stripos($query,'divorce') !== FALSE) {
+    $response = 'If a person wants to end a marriage, they can file for divorce. In a divorce, the court ends the marriage and all of the legal benefits that are a part of that marriage. A divorce can be contested (spouses do not agree) or uncontested (spouses agree).';
+  }
+
+  if (stripos($query, 'evict') !== FALSE || stripos($query, 'hous') !== FALSE  ) {
+    $response = 'A landlord can evict a tenant if the tenant fails to pay the rent when it is due;
+Violates any of the terms and conditions of the lease agreement;
+Damages the property;
+Does not leave the property after the lease comes to an end; or
+Does not have a written lease, but pays rent monthly, and the landlord gives a 30-day notice to move.';
+  }
+  if (stripos($query, 'forecl') !== FALSE || stripos($query, 'mortg') !== FALSE  ) {
+    $response = 'It is important to participate in your court case so you know what is happening and what you can do. You should also work with the lender on a loss mitigation option. During the case, lenders may accept your payments if they are in whole month amounts. The lender must apply the payment to your unpaid debt balance. If the payment is not enough to pay off the entire debt currently due, the lender may continue its foreclosure case.';
+  }
+  return $response;
+
+}
+
+function dialogflow_gethelp($zip) {
+  $location = $zip;
+  $region = ilao_geolocation_get_region($zip);
+  $county = $region['county'];
+  if (isset($county)) {
+    $lshc = db_query('Select node.nid from node where nid in 
+(Select entity_id from field_data_field_counties where field_data_field_counties.bundle 
+= :location and field_counties_target_id = :county) and
+ nid in (Select field_data_field_location_ref.field_location_ref_target_id 
+ from field_data_field_location_ref inner join field_data_field_service_type
+  on field_data_field_location_ref.entity_id = field_data_field_service_type.entity_id 
+  where field_data_field_service_type.field_service_type_tid = :tid)',
+      array(
+        ':county' => $county,
+        ':location' => 'location',
+        ':tid' => 1068
+      ))->fetchAll();
+    $node = "";
+
+    if (!empty($lshc)) {
+      foreach ($lshc as $key => $value) {
+        $node = node_load($value->nid);
+      }
+    }
+
+
+    if (!empty($node)) {
+      $title = $node->title;
+      $response = $title . ' is the nearest self-help center that may be able to help you.';
+    }
+    else {
+      $response = "I can not find a location near you.  Visit LSC.gov to find legal help";
+    }
+  }
+  else {
+    $response = 'That does not appear to be an Illinois zip code.  Visit LSC.gov to find legal help.';
+  }
+  return $response;
+
+
+}

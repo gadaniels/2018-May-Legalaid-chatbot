@@ -1,0 +1,7 @@
+dialogdemo.default_controller_handleRequest:
+ path: '/chatbot'
+ defaults:
+   _controller: '\Drupal\dialogdemo\Controller\DefaultController::handleRequest'
+   _title: 'Handle Request'
+ requirements:
+   _access: 'TRUE'

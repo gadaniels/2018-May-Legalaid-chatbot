@@ -1,0 +1,5 @@
+name: 'dialogdemo'
+type: module
+description: 'Hackathon demo 2'
+core: 8.x
+package: 'Custom'

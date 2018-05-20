@@ -1,0 +1,5 @@
+name =  ILAO Dialogflow
+description = I am a test
+package = ILAO
+version = 1.0
+core = 7.x
